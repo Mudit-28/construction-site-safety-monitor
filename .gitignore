@@ -216,3 +216,26 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Model weights (too large for git)
+*.pt
+*.pth
+models/
+
+# Dataset
+datasets/
+
+# Upload/result artifacts
+app/static/uploads/
+app/static/results/
+
+# Video files
+*.mp4
+*.avi
+
+# Environment
+.env
+
+# OS
+.DS_Store
+Thumbs.db
