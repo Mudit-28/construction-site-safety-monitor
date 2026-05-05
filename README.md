@@ -1,4 +1,3 @@
-# construction-site-safety-monitor
 # 🦺 SafeSite Vision
 > Automated PPE compliance monitoring for construction sites using computer vision.
 
