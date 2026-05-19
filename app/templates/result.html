@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Results — PPE Compliance</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel2: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #f59e0b;
+      --green: #10b981;
+      --yellow: #eab308;
+      --red: #ef4444;
+      --border: #475569;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0; min-height: 100vh; line-height: 1.5;
+    }
+    header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: #1e293b;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    header a { color: var(--accent); text-decoration: none; font-size: 0.9rem; }
+    main { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
+
+    .card {
+      background: var(--panel); padding: 1.5rem; border-radius: 0.75rem;
+      border: 1px solid var(--border); margin-bottom: 1.5rem;
+    }
+    .card h2 { margin: 0 0 1rem; font-size: 1.1rem; color: var(--accent); }
+
+    .score-big {
+      display: flex; align-items: baseline; gap: 1rem; margin-bottom: 1rem;
+    }
+    .score-value { font-size: 3.5rem; font-weight: 700; line-height: 1; }
+    .score-value.good { color: var(--green); }
+    .score-value.mid  { color: var(--yellow); }
+    .score-value.bad  { color: var(--red); }
+    .score-meta { color: var(--muted); font-size: 0.95rem; }
+
+    .media-wrap {
+      background: #000; border-radius: 0.5rem; overflow: hidden;
+      display: flex; justify-content: center;
+    }
+    .media-wrap img, .media-wrap video { max-width: 100%; display: block; }
+
+    table {
+      width: 100%; border-collapse: collapse; font-size: 0.9rem;
+    }
+    th, td {
+      padding: 0.5rem 0.75rem; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--muted); font-weight: 500; font-size: 0.8rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    tr:last-child td { border-bottom: none; }
+    .check { color: var(--green); font-weight: 600; }
+    .cross { color: var(--red); font-weight: 600; }
+
+    ul.violations { margin: 0; padding-left: 1.25rem; }
+    ul.violations li { color: #fca5a5; font-size: 0.9rem; margin-bottom: 0.25rem; }
+    ul.alerts li { color: #fbbf24; font-size: 0.9rem; margin-bottom: 0.25rem; font-family: ui-monospace, monospace; }
+
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+    }
+    .stat {
+      padding: 0.75rem; background: var(--panel2); border-radius: 0.5rem;
+      border: 1px solid var(--border);
+    }
+    .stat-label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 1.4rem; font-weight: 600; margin-top: 0.25rem; }
+
+    .downloads {
+      display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;
+    }
+    .downloads a {
+      padding: 0.5rem 0.9rem; background: var(--panel2); color: var(--text);
+      border-radius: 0.4rem; text-decoration: none; border: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .downloads a:hover { background: var(--border); }
+
+    .processing {
+      text-align: center; padding: 3rem 1rem; color: var(--muted);
+    }
+    .spinner {
+      width: 2rem; height: 2rem; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 1rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      padding: 1rem; background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--red); border-radius: 0.5rem; color: #fecaca;
+      font-family: ui-monospace, monospace; font-size: 0.85rem;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🦺 Result — {{ job.filename or 'Untitled' }}</h1>
+    <a href="/">← Back to upload</a>
+  </header>
+
+  <main>
+  {% if job.status == 'running' %}
+    <div class="card processing">
+      <div class="spinner"></div>
+      <div id="status-msg">Processing…</div>
+      <div style="margin-top: 0.5rem; font-size: 0.9rem;" id="status-progress"></div>
+    </div>
+    <script>
+      const pollUrl = "/status/{{ job_id }}";
+      async function poll() {
+        const r = await fetch(pollUrl);
+        const s = await r.json();
+        if (s.status === 'done') { window.location.reload(); return; }
+        if (s.status === 'error') {
+          document.getElementById('status-msg').textContent = 'Error: ' + s.error;
+          return;
+        }
+        if (s.total_frames > 0) {
+          document.getElementById('status-progress').textContent =
+            'Frame ' + s.frames_processed + ' / ' + s.total_frames +
+            ' (' + (s.percent || 0).toFixed(1) + '%)';
+        }
+        setTimeout(poll, 750);
+      }
+      poll();
+    </script>
+
+  {% elif job.status == 'error' %}
+    <div class="card">
+      <h2>Processing failed</h2>
+      <div class="error-box">{{ job.error }}</div>
+      {% if job.traceback %}
+      <details style="margin-top: 1rem;">
+        <summary style="cursor: pointer; color: var(--muted);">Traceback</summary>
+        <div class="error-box" style="margin-top: 0.5rem;">{{ job.traceback }}</div>
+      </details>
+      {% endif %}
+    </div>
+
+  {% elif job.kind == 'image' %}
+    {% set res = job.result %}
+    {% set score = res.score %}
+    <div class="card">
+      <div class="score-big">
+        <div class="score-value {{ 'good' if score >= 80 else ('mid' if score >= 50 else 'bad') }}">
+          {{ "%.1f"|format(score) }}%
+        </div>
+        <div class="score-meta">Compliance score</div>
+      </div>
+      <div class="media-wrap">
+        <img src="{{ res.output_web }}" alt="Annotated result">
+      </div>
+      <div class="downloads">
+        <a href="{{ res.output_web }}" download>⬇ Download annotated image</a>
+        <a href="{{ res.input_web }}" download>⬇ Original</a>
+      </div>
+    </div>
+
+    {% if res.violations %}
+    <div class="card">
+      <h2>Violations ({{ res.violations|length }})</h2>
+      <ul class="violations">
+        {% for v in res.violations %}<li>{{ v }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if res.details.workers %}
+    <div class="card">
+      <h2>Per-worker breakdown</h2>
+      <table>
+        <thead>
+          <tr><th>Worker</th><th>Helmet</th><th>Vest</th><th>Helmet conf</th><th>Vest conf</th></tr>
+        </thead>
+        <tbody>
+          {% for w in res.details.workers %}
+          <tr>
+            <td>#{{ w.worker_id }}</td>
+            <td class="{{ 'check' if w.has_helmet else 'cross' }}">{{ '✓' if w.has_helmet else '✗' }}</td>
+            <td class="{{ 'check' if w.has_vest else 'cross' }}">{{ '✓' if w.has_vest else '✗' }}</td>
+            <td>{{ "%.2f"|format(w.helmet_conf) if w.helmet_conf else '—' }}</td>
+            <td>{{ "%.2f"|format(w.vest_conf) if w.vest_conf else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+  {% else %}
+    {# ===================== VIDEO RESULT ===================== #}
+    {% set s = job.summary %}
+    <div class="card">
+      <div class="score-big">
+        <div class="score-value {{ 'good' if s.final_smoothed_score >= 80 else ('mid' if s.final_smoothed_score >= 50 else 'bad') }}">
+          {{ "%.1f"|format(s.final_smoothed_score) }}%
+        </div>
+        <div class="score-meta">Final smoothed compliance score over {{ s.total_frames }} frames ({{ "%.1f"|format(s.duration_s) }}s)</div>
+      </div>
+      <div class="media-wrap">
+        <video controls playsinline>
+          <source src="{{ s.output_video_web }}" type="video/mp4">
+        </video>
+      </div>
+      <div class="downloads">
+        <a href="{{ s.output_video_web }}" download>⬇ Annotated video</a>
+        <a href="{{ s.timeline_csv_web }}" download>⬇ Timeline CSV</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Processing stats</h2>
+      <div class="stats-grid">
+        <div class="stat">
+          <div class="stat-label">Video duration</div>
+          <div class="stat-value">{{ "%.1f"|format(s.duration_s) }}s</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Processing time</div>
+          <div class="stat-value">{{ "%.1f"|format(s.processing_time_s) }}s</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Avg inference FPS</div>
+          <div class="stat-value">{{ "%.1f"|format(s.avg_processing_fps) }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Unique workers</div>
+          <div class="stat-value">{{ s.tracks|length }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Alerts raised</div>
+          <div class="stat-value" style="color: var(--red);">{{ s.alerts|length }}</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Resolution</div>
+          <div class="stat-value">{{ s.resolution[0] }}×{{ s.resolution[1] }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Compliance over time</h2>
+      <canvas id="timeline-chart" height="200"></canvas>
+    </div>
+
+    {% if s.tracks %}
+    <div class="card">
+      <h2>Per-worker tracking ({{ s.tracks|length }})</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Worker</th><th>Frames seen</th>
+            <th>% without helmet</th><th>% without vest</th>
+            <th>Alerted</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in s.tracks %}
+          <tr>
+            <td>#{{ t.worker_id }}</td>
+            <td>{{ t.frames_seen }}</td>
+            <td class="{{ 'cross' if t.pct_no_helmet > 10 else '' }}">{{ t.pct_no_helmet }}%</td>
+            <td class="{{ 'cross' if t.pct_no_vest > 10 else '' }}">{{ t.pct_no_vest }}%</td>
+            <td>
+              {% if t.alerted_helmet %}<span class="cross">helmet</span>{% endif %}
+              {% if t.alerted_helmet and t.alerted_vest %} · {% endif %}
+              {% if t.alerted_vest %}<span class="cross">vest</span>{% endif %}
+              {% if not t.alerted_helmet and not t.alerted_vest %}<span style="color: var(--muted);">—</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if s.alerts %}
+    <div class="card">
+      <h2>Alerts ({{ s.alerts|length }})</h2>
+      <ul class="alerts">
+        {% for a in s.alerts %}<li>[frame {{ a.frame }}] {{ a.message }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <script>
+      // Plot compliance over time from the CSV
+      fetch("{{ s.timeline_csv_web }}")
+        .then(r => {
+          if (!r.ok) throw new Error("CSV fetch failed: " + r.status);
+          return r.text();
+        })
+        .then(text => {
+          // Windows line endings leave \r on the last column; strip it.
+          const lines = text.trim().split(/\r?\n/);
+          if (lines.length < 2) throw new Error("Timeline CSV is empty");
+          const header = lines[0].split(',').map(s => s.trim());
+          const idxTime = header.indexOf('time_s');
+          const idxRaw = header.indexOf('raw_score');
+          const idxSmooth = header.indexOf('smoothed_score');
+          const idxWorkers = header.indexOf('n_workers');
+          if (idxTime < 0 || idxRaw < 0 || idxSmooth < 0) {
+            throw new Error("CSV missing expected columns. Got: " + header.join(","));
+          }
+          const xs = [], raw = [], smooth = [], workers = [];
+          for (let i = 1; i < lines.length; i++) {
+            const cols = lines[i].split(',');
+            if (cols.length < header.length) continue;
+            xs.push(parseFloat(cols[idxTime]));
+            raw.push(parseFloat(cols[idxRaw]));
+            smooth.push(parseFloat(cols[idxSmooth]));
+            workers.push(parseInt(cols[idxWorkers]));
+          }
+          new Chart(document.getElementById('timeline-chart').getContext('2d'), {
+            type: 'line',
+            data: {
+              labels: xs,
+              datasets: [
+                { label: 'Raw per-frame score', data: raw,
+                  borderColor: 'rgba(148, 163, 184, 0.5)', borderWidth: 1,
+                  pointRadius: 0, tension: 0 },
+                { label: 'Smoothed (EMA)', data: smooth,
+                  borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)',
+                  borderWidth: 2, pointRadius: 0, tension: 0.1, fill: true },
+              ]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: {
+                legend: { labels: { color: '#e2e8f0' } },
+                tooltip: { mode: 'index', intersect: false }
+              },
+              scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(71,85,105,0.3)' },
+                     title: { text: 'Time (s)', display: true, color: '#94a3b8' } },
+                y: { min: 0, max: 100,
+                     ticks: { color: '#94a3b8' }, grid: { color: 'rgba(71,85,105,0.3)' },
+                     title: { text: 'Compliance %', display: true, color: '#94a3b8' } },
+              }
+            }
+          });
+        })
+        .catch(err => {
+          console.error('timeline load failed:', err);
+          const canvas = document.getElementById('timeline-chart');
+          const parent = canvas.parentElement;
+          parent.innerHTML = '<div style="padding: 2rem; text-align: center; color: #fca5a5;">' +
+            'Could not load timeline chart: ' + err.message +
+            '<br><small style="color: #94a3b8;">Try re-processing the video — old results may have broken URLs.</small></div>';
+        });
+    </script>
+
+  {% endif %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PPE Compliance Monitoring</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel2: #334155;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #f59e0b;
+      --accent2: #fbbf24;
+      --green: #10b981;
+      --red: #ef4444;
+      --border: #475569;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    header {
+      padding: 2rem 1.5rem 1rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .subtitle {
+      color: var(--muted);
+      margin-top: 0.25rem;
+      font-size: 0.95rem;
+    }
+    main {
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+    .model-status {
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+    .model-status.ok { background: rgba(16, 185, 129, 0.1); border-color: var(--green); }
+    .model-status.bad { background: rgba(239, 68, 68, 0.1); border-color: var(--red); }
+    .dot {
+      display: inline-block;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .ok .dot  { background: var(--green); }
+    .bad .dot { background: var(--red); }
+    .model-path { font-family: ui-monospace, monospace; color: var(--muted); font-size: 0.85rem; word-break: break-all; }
+
+    form.card {
+      background: var(--panel);
+      padding: 1.5rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--border);
+    }
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 0.5rem;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      background: rgba(0,0,0,0.15);
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+      position: relative;
+      display: block;
+    }
+    .drop-zone:focus, .drop-zone:focus-within,
+    .drop-zone *:focus {
+      outline: none;
+    }
+    .drop-zone.dragover, .drop-zone:hover {
+      border-color: var(--accent);
+      background: rgba(245, 158, 11, 0.08);
+    }
+    .drop-zone input[type=file] {
+      position: absolute; width: 1px; height: 1px;
+      padding: 0; margin: -1px; overflow: hidden;
+      clip: rect(0,0,0,0); border: 0;
+    }
+    .drop-zone .hint { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+    .drop-zone .main-label { font-size: 1.05rem; font-weight: 500; }
+    .drop-zone .filename {
+      margin-top: 0.75rem;
+      color: var(--accent2);
+      font-family: ui-monospace, monospace;
+      font-size: 0.9rem;
+      word-break: break-all;
+    }
+    .upload-btn {
+      margin-top: 1rem;
+      display: inline-block;
+      padding: 0.55rem 1.2rem;
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 0.4rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .upload-btn:hover {
+      background: var(--border);
+      border-color: var(--accent);
+    }
+
+    details.options {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: var(--panel2);
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+    }
+    details.options summary {
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem 1rem;
+      margin-top: 0.75rem;
+    }
+    .options-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-size: 0.85rem;
+    }
+    .options-grid small { color: var(--muted); font-size: 0.75rem; }
+    .options-grid input[type=number],
+    .options-grid input[type=text] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.5rem;
+      border-radius: 0.25rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+    .options-grid .checkbox-row {
+      grid-column: 1 / -1;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    button.submit {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.15s ease;
+    }
+    button.submit:hover:not(:disabled) { background: var(--accent2); }
+    button.submit:disabled { opacity: 0.5; cursor: wait; }
+
+    .progress {
+      margin-top: 1rem;
+      display: none;
+    }
+    .progress-bar-wrap {
+      height: 0.5rem;
+      background: var(--panel2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      transition: width 0.2s ease;
+    }
+    .progress-label {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .error {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid var(--red);
+      border-radius: 0.5rem;
+      color: #fecaca;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--accent2); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🦺 Construction Zone Safety Compliance</h1>
+    <div class="subtitle">PPE monitoring for images and videos</div>
+  </header>
+
+  <main>
+    <div class="model-status {% if model_ok %}ok{% else %}bad{% endif %}">
+      <span class="dot"></span>
+      {% if model_ok %}
+        <span>Model loaded:</span>
+        <span class="model-path">{{ model_path }}</span>
+      {% else %}
+        <span>⚠ Model not found — set <code>PPE_MODEL_PATH</code> or train first.</span>
+        <span class="model-path">Expected: {{ model_path }}</span>
+      {% endif %}
+    </div>
+
+    <form class="card" id="upload-form" novalidate>
+      <div class="drop-zone" id="drop-zone" tabindex="-1">
+        <div class="main-label">Drop an image or video here</div>
+        <div class="hint">or click below to browse — max {{ max_upload_mb }} MB</div>
+        <div class="hint">.jpg, .png, .mp4, .avi, .mov, .mkv</div>
+        <div style="margin-top: 1rem;">
+          <button type="button" class="upload-btn" id="browse-btn">📁 Choose file</button>
+        </div>
+        <div class="filename" id="filename"></div>
+        <input type="file" name="file" id="file-input"
+               accept=".jpg,.jpeg,.png,.bmp,.webp,.mp4,.mov,.avi,.mkv,.webm">
+      </div>
+
+      <details class="options">
+        <summary>Advanced options</summary>
+        <div class="options-grid">
+          <label>
+            EMA smoothing α
+            <input type="number" name="alpha" value="0.1" step="0.05" min="0.01" max="1.0">
+            <small>Lower = smoother scores (video only)</small>
+          </label>
+          <label>
+            Alert after frames
+            <input type="number" name="alert_after" value="10" step="1" min="1" max="300">
+            <small>Consecutive violation frames</small>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" name="tile" value="1">
+            <span>Enable tiled inference (helps distant workers, ~4× slower)</span>
+          </label>
+        </div>
+      </details>
+
+      <button type="submit" class="submit" id="submit-btn" disabled>
+        Select a file first
+      </button>
+
+      <div class="progress" id="progress">
+        <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+        <div class="progress-label" id="progress-label">Uploading…</div>
+      </div>
+
+      <div class="error" id="error"></div>
+    </form>
+  </main>
+
+  <script>
+    const form     = document.getElementById('upload-form');
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const browseBtn = document.getElementById('browse-btn');
+    const filename = document.getElementById('filename');
+    const submitBtn = document.getElementById('submit-btn');
+    const progress = document.getElementById('progress');
+    const progressBar = document.getElementById('progress-bar');
+    const progressLabel = document.getElementById('progress-label');
+    const errorBox = document.getElementById('error');
+
+    function setFile(f) {
+      if (!f) { submitBtn.disabled = true; filename.textContent = ''; submitBtn.textContent = 'Select a file first'; return; }
+      filename.textContent = f.name + ' (' + (f.size / 1024 / 1024).toFixed(1) + ' MB)';
+      submitBtn.disabled = false;
+      const isVideo = /\.(mp4|mov|avi|mkv|webm)$/i.test(f.name);
+      submitBtn.textContent = isVideo ? '▶  Analyze video' : '▶  Analyze image';
+    }
+
+    // Click anywhere on the drop zone (but NOT on the button, which has its own handler)
+    dropZone.addEventListener('click', (e) => {
+      if (e.target === browseBtn || browseBtn.contains(e.target)) return;
+      fileInput.click();
+    });
+    // Explicit upload button
+    browseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+    fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const f = e.dataTransfer.files[0];
+      if (f) {
+        const dt = new DataTransfer();
+        dt.items.add(f);
+        fileInput.files = dt.files;
+        setFile(f);
+      }
+    });
+
+    function showError(msg) {
+      errorBox.style.display = 'block';
+      errorBox.textContent = msg;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Uploading…';
+      progress.style.display = 'block';
+      progressBar.style.width = '0%';
+      progressLabel.textContent = 'Uploading…';
+
+      const fd = new FormData(form);
+
+      try {
+        // Step 1: upload
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) {
+            const pct = (ev.loaded / ev.total) * 100;
+            progressBar.style.width = pct + '%';
+            progressLabel.textContent = 'Uploading… ' + pct.toFixed(0) + '%';
+          }
+        };
+        xhr.onload = async () => {
+          if (xhr.status !== 200) {
+            let msg = xhr.statusText;
+            try { msg = JSON.parse(xhr.responseText).error || msg; } catch (_) {}
+            showError('Upload failed: ' + msg);
+            submitBtn.disabled = false;
+            submitBtn.textContent = '▶  Analyze';
+            progress.style.display = 'none';
+            return;
+          }
+          const res = JSON.parse(xhr.responseText);
+
+          // Step 2: poll for job completion
+          progressBar.style.width = '100%';
+          progressLabel.textContent = res.kind === 'image'
+            ? 'Running inference…'
+            : 'Processing video…';
+
+          const poll = async () => {
+            const r = await fetch(res.status_url);
+            const s = await r.json();
+
+            if (s.status === 'done') {
+              window.location.href = res.result_url;
+            } else if (s.status === 'error') {
+              showError('Processing failed: ' + (s.error || 'unknown'));
+              submitBtn.disabled = false;
+              submitBtn.textContent = '▶  Analyze';
+              progress.style.display = 'none';
+            } else {
+              if (s.percent != null && s.total_frames > 0) {
+                progressBar.style.width = s.percent + '%';
+                progressLabel.textContent =
+                  'Frame ' + s.frames_processed + ' / ' + s.total_frames +
+                  ' (' + s.percent.toFixed(1) + '%)';
+              }
+              setTimeout(poll, 750);
+            }
+          };
+          poll();
+        };
+        xhr.onerror = () => {
+          showError('Network error during upload');
+          submitBtn.disabled = false;
+          submitBtn.textContent = '▶  Analyze';
+          progress.style.display = 'none';
+        };
+        xhr.open('POST', '/upload');
+        xhr.send(fd);
+      } catch (err) {
+        showError(err.message);
+      }
+    });
+  </script>
+</body>
+</html>
